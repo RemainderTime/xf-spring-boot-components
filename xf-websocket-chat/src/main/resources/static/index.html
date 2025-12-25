@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 实时聊天室</title>
+    <link rel="stylesheet" href="/css/main.css" />
+    <!-- Google Fonts for Aesthetics -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <noscript>
+        <h2>Sorry! Your browser doesn't support Javascript to run this application.</h2>
+    </noscript>
+
+    <div id="username-page">
+        <div class="username-page-container">
+            <h1 class="title">加入聊天</h1>
+            <form id="usernameForm" name="usernameForm">
+                <div class="form-group">
+                    <input type="text" id="name" placeholder="请输入你的昵称" autocomplete="off" class="form-control" />
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="accent-button">开始聊天</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="chat-page" class="hidden">
+        <div class="chat-container">
+            <div class="chat-header">
+                <h2>Spring WebSocket Chat</h2>
+            </div>
+            <ul id="messageArea">
+                <!-- Messages will appear here -->
+            </ul>
+            <form id="messageForm" name="messageForm" nameForm="messageForm">
+                <div class="form-group">
+                    <div class="input-group clearfix">
+                        <input type="text" id="message" placeholder="输入消息..." autocomplete="off" class="form-control"/>
+                        <button type="submit" class="primary-button">发送</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 引入 SockJS 和 Stomp 库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="/js/main.js"></script>
+</body>
+</html>
