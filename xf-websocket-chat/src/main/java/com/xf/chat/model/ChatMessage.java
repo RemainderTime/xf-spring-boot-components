@@ -4,9 +4,6 @@ import lombok.*;
 
 /**
  * 聊天消息实体类
- * <p>
- * 用于封装从客户端发送到服务器，或从服务器广播到客户端的消息内容。
- * 只使用基本的字段演示核心功能。
  */
 @Getter
 @Setter
@@ -29,5 +26,10 @@ public class ChatMessage {
      * 发送者 (用户昵称)
      */
     private String sender;
+
+    /**
+     * 接收者 (私聊时使用，用户昵称)
+     */
+    private String receiver;
 
 }

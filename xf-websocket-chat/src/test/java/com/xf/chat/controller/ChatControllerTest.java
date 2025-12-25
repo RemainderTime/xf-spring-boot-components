@@ -1,5 +1,6 @@
 package com.xf.chat.controller;
 
+import com.xf.chat.config.StompPrincipal;
 import com.xf.chat.model.ChatMessage;
 import com.xf.chat.model.MessageType;
 import org.junit.jupiter.api.Test;
@@ -53,8 +54,11 @@ class ChatControllerTest {
         Map<String, Object> sessionAttributes = new HashMap<>();
         when(headerAccessor.getSessionAttributes()).thenReturn(sessionAttributes);
 
+        // 创建一个模拟的 Principal
+        StompPrincipal principal = new StompPrincipal("NewUser");
+
         // 执行
-        ChatMessage result = chatController.addUser(message, headerAccessor);
+        ChatMessage result = chatController.addUser(message, headerAccessor, principal);
 
         // 验证
         assertEquals(message, result);

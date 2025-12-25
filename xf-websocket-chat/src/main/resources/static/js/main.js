@@ -2,9 +2,11 @@
 
 var usernamePage = document.querySelector('#username-page');
 var chatPage = document.querySelector('#chat-page');
+var chatTitle = document.querySelector('#chat-title');
 var usernameForm = document.querySelector('#usernameForm');
 var messageForm = document.querySelector('#messageForm');
 var messageInput = document.querySelector('#message');
+var receiverInput = document.querySelector('#receiver');
 var messageArea = document.querySelector('#messageArea');
 var connectingElement = document.querySelector('.connecting');
 
@@ -25,14 +27,14 @@ function connect(event) {
     if (username) {
         usernamePage.classList.add('hidden');
         chatPage.classList.remove('hidden');
+        chatTitle.textContent = "Welcome, " + username;
 
-        // 1. 创建 SockJS 实例，连接到服务器端点 "/ws"
-        var socket = new SockJS('/ws');
+        // 1. 创建 SockJS 实例，注意这里我们传递了 username 参数
+        // 这样 UserHandshakeHandler 才能拦截到并绑定 Principal
+        var socket = new SockJS('/ws?username=' + encodeURIComponent(username));
 
-        // 2. 创建 STOMP 客户端
         stompClient = Stomp.over(socket);
 
-        // 3. 建立连接
         stompClient.connect({}, onConnected, onError);
     }
     event.preventDefault();
@@ -43,18 +45,18 @@ function connect(event) {
  * 连接成功回调
  */
 function onConnected() {
-    // 订阅 Public Topic
-    // 任何发布到 "/topic/public" 的消息，我们都会在这个回调用收到
+    // 订阅群聊 (Public Topic)
     stompClient.subscribe('/topic/public', onMessageReceived);
 
-    // 告诉服务器我们加入了
-    // 发送到 "/app/chat.addUser"，对应 Controller 的 @MessageMapping("/chat.addUser")
+    // 订阅私聊 (User Specific Queue)
+    // 客户端只需要订阅 "/user/queue/private"，Spring 会自动转换
+    stompClient.subscribe('/user/queue/private', onPrivateMessageReceived);
+
+    // 告诉服务器我们加入了 (群聊广播)
     stompClient.send("/app/chat.addUser",
         {},
         JSON.stringify({ sender: username, type: 'JOIN' })
     );
-
-    // connectingElement.classList.add('hidden');    
 }
 
 
@@ -63,11 +65,11 @@ function onConnected() {
  */
 function onError(error) {
     var status = document.querySelector('.status');
-    if (status) {
+    if (status) { // defensive check
         status.textContent = '无法连接到 WebSocket 服务器，请刷新页面重试。';
         status.style.color = 'red';
     }
-    console.error('Could not connect to WebSocket server. Please refresh this page to try again!');
+    console.error('Could not connect to WebSocket server:', error);
 }
 
 
@@ -76,6 +78,7 @@ function onError(error) {
  */
 function sendMessage(event) {
     var messageContent = messageInput.value.trim();
+    var receiver = receiverInput.value.trim();
 
     if (messageContent && stompClient) {
         var chatMessage = {
@@ -84,20 +87,73 @@ function sendMessage(event) {
             type: 'CHAT'
         };
 
-        // 发送到 "/app/chat.sendMessage"
-        stompClient.send("/app/chat.sendMessage", {}, JSON.stringify(chatMessage));
+        if (receiver && receiver.length > 0) {
+            // 私聊逻辑
+            chatMessage.receiver = receiver;
+            // 发送到私聊 endpoint
+            stompClient.send("/app/chat.private", {}, JSON.stringify(chatMessage));
+
+            // 因为私聊发给自己不会被广播回来(除非发给自己)，所以需要手动显示在界面上
+            showSelfMessage(chatMessage);
+        } else {
+            // 群聊逻辑
+            stompClient.send("/app/chat.sendMessage", {}, JSON.stringify(chatMessage));
+        }
+
         messageInput.value = '';
     }
     event.preventDefault();
 }
 
+/**
+ * 显示自己发的私聊消息
+ */
+function showSelfMessage(message) {
+    var messageElement = document.createElement('li');
+    messageElement.classList.add('chat-message');
+    messageElement.classList.add('self'); // 使用自己的样式
+
+    // 可以加个标记说是私聊
+    message.content = "(私聊 " + message.receiver + ") " + message.content;
+
+    var avatarElement = document.createElement('i');
+    var avatarText = document.createTextNode(message.sender[0]);
+    avatarElement.appendChild(avatarText);
+    avatarElement.style['background-color'] = getAvatarColor(message.sender);
+    avatarElement.classList.add('avatar');
+    messageElement.appendChild(avatarElement);
+
+    var textElement = document.createElement('p');
+    var messageText = document.createTextNode(message.content);
+    textElement.appendChild(messageText);
+    messageElement.appendChild(textElement);
+
+    messageArea.appendChild(messageElement);
+    messageArea.scrollTop = messageArea.scrollHeight;
+}
+
 
 /**
- * 接收并显示消息
+ * 接收并显示群聊消息
  */
 function onMessageReceived(payload) {
     var message = JSON.parse(payload.body);
+    displayMessage(message);
+}
 
+/**
+ * 接收并显示私聊消息
+ */
+function onPrivateMessageReceived(payload) {
+    var message = JSON.parse(payload.body);
+    message.content = "(私信) " + message.content; // 区分私信
+    displayMessage(message);
+}
+
+/**
+ * 通用渲染消息逻辑
+ */
+function displayMessage(message) {
     var messageElement = document.createElement('li');
 
     if (message.type === 'JOIN') {
