@@ -16,7 +16,8 @@
     <name>xf-spring-boot-components</name>
     <description>xf-spring-boot-components</description>
     <modules>
-        <module>xf-websocket-chat</module>
+        <module>xf-websocket-stomp</module>
+        <module>xf-websocket-native</module>
     </modules>
 
     <url/>

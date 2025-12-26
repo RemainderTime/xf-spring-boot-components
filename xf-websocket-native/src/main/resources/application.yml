@@ -1,0 +1,6 @@
+server:
+  port: 8081 # 避开 8080，方便两个服务同时跑
+
+logging:
+  level:
+    com.xf.nativechat: DEBUG

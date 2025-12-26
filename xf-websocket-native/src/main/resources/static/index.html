@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spring Native WebSocket Demo</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+        }
+
+        #console {
+            border: 1px solid #ccc;
+            height: 300px;
+            overflow-y: scroll;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+        }
+
+        input {
+            padding: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Spring Native WebSocket (原生模式)</h2>
+
+    <div>
+        <label>用户ID (UID):</label>
+        <input type="text" id="uidInput" value="1001" placeholder="Enter your UID">
+        <button onclick="connect()">连接 (Connect)</button>
+        <button onclick="disconnect()">断开 (Disconnect)</button>
+    </div>
+
+    <br />
+
+    <div id="console"></div>
+
+    <div>
+        <input type="text" id="msgInput" placeholder="Type a message..." style="width: 300px;">
+        <button onclick="send()">发送 (Send)</button>
+        <button onclick="sendPing()">发心跳 (Ping)</button>
+    </div>
+
+    <script>
+        var ws = null;
+
+        function connect() {
+            var uid = document.getElementById('uidInput').value;
+            if (!uid) { alert('请输入UID'); return; }
+
+            // 1. 原生 WebSocket 连接! 没有任何第三方库!
+            // URL 带参这是最原生的认证方式
+            var wsUrl = 'ws://localhost:8081/ws/native?uid=' + uid;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function () {
+                log('--> 连接成功');
+            };
+
+            ws.onmessage = function (event) {
+                // 收到的是纯字符串
+                log('<-- 收到: ' + event.data);
+            };
+
+            ws.onclose = function () {
+                log('--> 连接已断开');
+            };
+
+            ws.onerror = function (err) {
+                log('--> 连接报错');
+                console.error(err);
+            };
+        }
+
+        function disconnect() {
+            if (ws) ws.close();
+        }
+
+        function send() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                var msg = document.getElementById('msgInput').value;
+                ws.send(msg); // 直接发字符串
+                log('--> 发送: ' + msg);
+            } else {
+                alert('未连接');
+            }
+        }
+
+        function sendPing() {
+            if (ws) {
+                ws.send("ping");
+                log('--> 发送: ping');
+            }
+        }
+
+        function log(text) {
+            var consoleDiv = document.getElementById('console');
+            var p = document.createElement('p');
+            p.innerText = new Date().toLocaleTimeString() + " " + text;
+            consoleDiv.appendChild(p);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+    </script>
+</body>
+
+</html>
