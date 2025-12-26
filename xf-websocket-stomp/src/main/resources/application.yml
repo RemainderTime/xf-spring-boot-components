@@ -1,0 +1,15 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: xf-websocket-chat
+
+logging:
+  level:
+    root: INFO
+    # 开启 WebSocket 相关的调试日志，方便开发时查看连接和消息交互详情
+    org.springframework.web.socket: INFO
+    org.springframework.messaging: INFO
+    # 如果想看更详细的 STOMP 协议帧交互，可以将级别改为 DEBUG
+    # org.springframework.web.socket.messaging: DEBUG

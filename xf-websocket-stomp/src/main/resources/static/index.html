@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 实时聊天室</title>
+    <link rel="stylesheet" href="/css/main.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <noscript>
+        <h2>Sorry! Your browser doesn't support Javascript to run this application.</h2>
+    </noscript>
+
+    <div id="username-page">
+        <div class="username-page-container">
+            <h1 class="title">加入聊天</h1>
+            <form id="usernameForm" name="usernameForm">
+                <div class="form-group">
+                    <input type="text" id="name" placeholder="请输入你的昵称 (唯一ID)" autocomplete="off" class="form-control" />
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="accent-button">进入聊天室</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="chat-page" class="hidden">
+        <div class="chat-container">
+            <div class="chat-header">
+                <h2 id="chat-title">Spring WebSocket Chat</h2>
+            </div>
+            <ul id="messageArea">
+                <!-- Messages will appear here -->
+            </ul>
+            <form id="messageForm" name="messageForm" nameForm="messageForm">
+                <div class="form-group">
+                    <div class="input-group clearfix">
+                        <!-- 新增：接收者输入框 -->
+                        <input type="text" id="receiver" placeholder="发送给谁? (空=所有人)" autocomplete="off"
+                            class="form-control receiver-input" style="flex: 0 0 150px; margin-right: 5px;" />
+                        <input type="text" id="message" placeholder="输入消息..." autocomplete="off" class="form-control" />
+                        <button type="submit" class="primary-button">发送</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 引入 SockJS 和 Stomp 库 -->
+    <!-- 移除 SockJS 依赖，只保留 Stomp -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.1.4/sockjs.min.js"></script> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="/js/main.js"></script>
+</body>
+
+</html>
