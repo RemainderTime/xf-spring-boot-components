@@ -29,13 +29,23 @@ function connect(event) {
         chatPage.classList.remove('hidden');
         chatTitle.textContent = "Welcome, " + username;
 
-        // 1. 创建 SockJS 实例，注意这里我们传递了 username 参数
-        // 这样 UserHandshakeHandler 才能拦截到并绑定 Principal
-        var socket = new SockJS('/ws?username=' + encodeURIComponent(username));
+        // 1. 使用原生 WebSocket 构造函数 (不再依赖 sockjs.js)
+        // 注意：Web端必须写完整的 ws:// 或 wss:// 协议头
+        // 这里的路径 '/ws' 对应后端 registry.addEndpoint("/ws")
 
-        stompClient = Stomp.over(socket);
+        // 自动检测协议 (https -> wss, http -> ws)
+        var protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
+        var wsUrl = protocol + location.host + '/ws';
 
-        stompClient.connect({}, onConnected, onError);
+        stompClient = Stomp.client(wsUrl);
+
+        // 可选：开启心跳检测 (每10秒一次)
+        stompClient.heartbeat.outgoing = 10000;
+        stompClient.heartbeat.incoming = 10000;
+
+        // 2. 在 Connect Headers 中传递认证信息 (username)
+        // 生产环境中这里通常传 { 'Authorization': 'Bearer ' + token }
+        stompClient.connect({ username: username }, onConnected, onError);
     }
     event.preventDefault();
 }
