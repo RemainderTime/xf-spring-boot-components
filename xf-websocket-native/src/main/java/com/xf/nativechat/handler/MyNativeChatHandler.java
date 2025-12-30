@@ -1,7 +1,9 @@
 package com.xf.nativechat.handler;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -25,33 +27,26 @@ public class MyNativeChatHandler extends TextWebSocketHandler {
     // 在线用户 Session 池
     // Key: uid, Value: Session
     private static final Map<String, WebSocketSession> USER_SESSION_MAP = new ConcurrentHashMap<>();
+    // JSON 转换工具
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * 连接建立成功
      */
-    @Override
-    public void afterConnectionEstablished(@NonNull WebSocketSession session) {
-        String uid = (String) session.getAttributes().get("uid");
-        if (uid != null) {
-            USER_SESSION_MAP.put(uid, session);
-            log.info("User connected: {}", uid);
-            // 这里可以广播一个上线通知，或者啥都不做
-        }
+    /**
+     * 更新心跳时间
+     */
+    private void updateLastHeartbeat(WebSocketSession session) {
+        session.getAttributes().put("lastHeartbeat", System.currentTimeMillis());
     }
 
-    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
-
-    /**
-     * 处理收到的文本消息
-     * 支持两种格式：
-     * 1. 纯文本 "ping" -> 回复 "pong"
-     * 2. JSON 格式 { "toUser": "1002", "content": "你好" } -> 转发给 1002
-     */
     @Override
     protected void handleTextMessage(@NonNull WebSocketSession session, TextMessage message) throws IOException {
         String payload = message.getPayload();
-        log.info("消息体内同json: {}", payload);
-        // 1. 心跳检测 (Ping-Pong)
+
+        // 任何消息都算一次“活跃”，更新心跳时间
+        updateLastHeartbeat(session);
+
         if ("ping".equalsIgnoreCase(payload)) {
             session.sendMessage(new TextMessage("pong"));
             return;
@@ -59,16 +54,14 @@ public class MyNativeChatHandler extends TextWebSocketHandler {
 
         String fromUid = (String) session.getAttributes().get("uid");
 
-        // 2. 尝试解析为 JSON 并转发
+        // ... (JSON handling logic) ...
         try {
-            // 简单解析 JSON
             com.fasterxml.jackson.databind.JsonNode json = objectMapper.readTree(payload);
             if (json.has("toUser") && json.has("content")) {
                 String toUser = json.get("toUser").asText();
                 String content = json.get("content").asText();
                 String type = json.has("type") ? json.get("type").asText() : "text";
 
-                // 构造标准转发消息体
                 java.util.Map<String, Object> msgMap = new java.util.HashMap<>();
                 msgMap.put("fromUser", fromUid);
                 msgMap.put("content", content);
@@ -76,20 +69,27 @@ public class MyNativeChatHandler extends TextWebSocketHandler {
 
                 String forwardJson = objectMapper.writeValueAsString(msgMap);
 
-                // 转发消息 (发送完整的 JSON 字符串)
                 sendToUser(toUser, forwardJson);
+                // 业务处理 异步/MQ 添加消息记录到数据库中
 
-                // 给自己回个执
                 session.sendMessage(new TextMessage("系统: 已发送 " + type + " 消息给 " + toUser));
                 return;
             }
         } catch (Exception e) {
-            // 解析失败，说明不是 JSON，或者是普通文本
             log.debug("Not a standard JSON message: {}", e.getMessage());
         }
 
-        // 3. 普通日志记录
         log.info("Received from {}: {}", fromUid, payload);
+    }
+
+    @Override
+    public void afterConnectionEstablished(@NonNull WebSocketSession session) {
+        String uid = (String) session.getAttributes().get("uid");
+        if (uid != null) {
+            USER_SESSION_MAP.put(uid, session);
+            updateLastHeartbeat(session); // 初始化心跳时间
+            log.info("User connected: {}", uid);
+        }
     }
 
     /**
@@ -105,8 +105,28 @@ public class MyNativeChatHandler extends TextWebSocketHandler {
     }
 
     /**
+     * 定时清理僵尸连接 (需要开启 @EnableScheduling)
+     * 每 30 秒执行一次
+     */
+    @Scheduled(fixedRate = 30000)
+    public void cleanZombieSessions() {
+        long now = System.currentTimeMillis();
+        USER_SESSION_MAP.forEach((uid, session) -> {
+            Long lastHeartbeat = (Long) session.getAttributes().get("lastHeartbeat");
+            // 如果超过 60 秒没动静
+            if (lastHeartbeat != null && (now - lastHeartbeat > 60000)) {
+                try {
+                    log.warn("Closing zombie session: {}", uid);
+                    session.close(CloseStatus.SESSION_NOT_RELIABLE);
+                } catch (IOException e) {
+                    log.error("Close zombie session failed", e);
+                }
+            }
+        });
+    }
+
+    /**
      * 业务方法：发送消息给指定用户
-     * (给 Controller 或 Service 调用的)
      */
     public void sendToUser(String uid, String message) {
         WebSocketSession session = USER_SESSION_MAP.get(uid);
