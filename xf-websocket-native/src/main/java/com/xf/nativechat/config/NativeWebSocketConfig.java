@@ -3,10 +3,12 @@ package com.xf.nativechat.config;
 import com.xf.nativechat.handler.AuthHandshakeInterceptor;
 import com.xf.nativechat.handler.MyNativeChatHandler;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
+import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
 
 /**
  * 原生 WebSocket 配置类
@@ -30,5 +32,20 @@ public class NativeWebSocketConfig implements WebSocketConfigurer {
         registry.addHandler(myNativeChatHandler, "/ws/native")
                 .addInterceptors(authHandshakeInterceptor) // 握手拦截，提取 token
                 .setAllowedOriginPatterns("*");
+    }
+
+    /**
+     * 配置 WebSocket 引擎属性（比如消息体大小限制）
+     * 默认限制很小（约8K），发图片（Base64）很容易超限导致连接断开。
+     * 这里设置为 5MB，防止因图片过大断开。
+     */
+    @Bean
+    public ServletServerContainerFactoryBean createWebSocketContainer() {
+        ServletServerContainerFactoryBean container = new ServletServerContainerFactoryBean();
+        // 文本缓存大小 (5MB)
+        container.setMaxTextMessageBufferSize(5 * 1024 * 1024);
+        // 二进制缓存大小 (5MB)
+        container.setMaxBinaryMessageBufferSize(5 * 1024 * 1024);
+        return container;
     }
 }

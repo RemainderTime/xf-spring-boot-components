@@ -39,23 +39,57 @@ public class MyNativeChatHandler extends TextWebSocketHandler {
         }
     }
 
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
     /**
      * 处理收到的文本消息
-     * 前端发: ws.send("hello")
+     * 支持两种格式：
+     * 1. 纯文本 "ping" -> 回复 "pong"
+     * 2. JSON 格式 { "toUser": "1002", "content": "你好" } -> 转发给 1002
      */
     @Override
     protected void handleTextMessage(@NonNull WebSocketSession session, TextMessage message) throws IOException {
         String payload = message.getPayload();
-
+        log.info("消息体内同json: {}", payload);
         // 1. 心跳检测 (Ping-Pong)
-        // 收到 "ping" 立刻回 "pong"，不打印日志，避免刷屏
         if ("ping".equalsIgnoreCase(payload)) {
             session.sendMessage(new TextMessage("pong"));
             return;
         }
 
-        // 2. 正常业务消息处理
-        log.info("Received from {}: {}", session.getAttributes().get("uid"), payload);
+        String fromUid = (String) session.getAttributes().get("uid");
+
+        // 2. 尝试解析为 JSON 并转发
+        try {
+            // 简单解析 JSON
+            com.fasterxml.jackson.databind.JsonNode json = objectMapper.readTree(payload);
+            if (json.has("toUser") && json.has("content")) {
+                String toUser = json.get("toUser").asText();
+                String content = json.get("content").asText();
+                String type = json.has("type") ? json.get("type").asText() : "text";
+
+                // 构造标准转发消息体
+                java.util.Map<String, Object> msgMap = new java.util.HashMap<>();
+                msgMap.put("fromUser", fromUid);
+                msgMap.put("content", content);
+                msgMap.put("type", type);
+
+                String forwardJson = objectMapper.writeValueAsString(msgMap);
+
+                // 转发消息 (发送完整的 JSON 字符串)
+                sendToUser(toUser, forwardJson);
+
+                // 给自己回个执
+                session.sendMessage(new TextMessage("系统: 已发送 " + type + " 消息给 " + toUser));
+                return;
+            }
+        } catch (Exception e) {
+            // 解析失败，说明不是 JSON，或者是普通文本
+            log.debug("Not a standard JSON message: {}", e.getMessage());
+        }
+
+        // 3. 普通日志记录
+        log.info("Received from {}: {}", fromUid, payload);
     }
 
     /**

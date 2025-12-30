@@ -41,9 +41,16 @@
     <div id="console"></div>
 
     <div>
-        <input type="text" id="msgInput" placeholder="Type a message..." style="width: 300px;">
-        <button onclick="send()">发送 (Send)</button>
+        <label>发送给 (To UID):</label>
+        <input type="text" id="toUidInput" placeholder="Empty = Log only" style="width: 120px;">
+        <input type="text" id="msgInput" placeholder="Type a message..." style="width: 200px;">
+        <button onclick="send()">发送文字 (Send Text)</button>
         <button onclick="sendPing()">发心跳 (Ping)</button>
+    </div>
+    <div style="margin-top: 10px;">
+        <label>发图片 (Image):</label>
+        <input type="file" id="fileInput" accept="image/*">
+        <button onclick="sendImage()">发送图片 (Send Image)</button>
     </div>
 
     <script>
@@ -54,7 +61,6 @@
             if (!uid) { alert('请输入UID'); return; }
 
             // 1. 原生 WebSocket 连接! 没有任何第三方库!
-            // URL 带参这是最原生的认证方式
             var wsUrl = 'ws://localhost:8081/ws/native?uid=' + uid;
 
             ws = new WebSocket(wsUrl);
@@ -64,8 +70,24 @@
             };
 
             ws.onmessage = function (event) {
-                // 收到的是纯字符串
-                log('<-- 收到: ' + event.data);
+                // 收到消息，尝试判断是不是 JSON
+                try {
+                    var data = JSON.parse(event.data);
+                    if (data.fromUser && data.content) {
+                        // 这是一个结构化消息
+                        if (data.type === 'image') {
+                            displayImage(data.fromUser, data.content);
+                        } else {
+                            log('<-- 收到来自[' + data.fromUser + ']: ' + data.content);
+                        }
+                    } else {
+                        // 普通 JSON 但不是我们的标准格式
+                        log('<-- 收到(JSON): ' + event.data);
+                    }
+                } catch (e) {
+                    // 不是 JSON，纯文本
+                    log('<-- 收到: ' + event.data);
+                }
             };
 
             ws.onclose = function () {
@@ -83,20 +105,71 @@
         }
 
         function send() {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                var msg = document.getElementById('msgInput').value;
-                ws.send(msg); // 直接发字符串
-                log('--> 发送: ' + msg);
+            if (!checkConnection()) return;
+
+            var msg = document.getElementById('msgInput').value;
+            var toUid = document.getElementById('toUidInput').value;
+
+            if (toUid && toUid.trim() !== "") {
+                var json = JSON.stringify({
+                    toUser: toUid,
+                    content: msg,
+                    type: 'text'
+                });
+                ws.send(json);
+                log('--> 私信给[' + toUid + ']: ' + msg);
             } else {
-                alert('未连接');
+                ws.send(msg);
+                log('--> 发送: ' + msg);
             }
         }
 
+        function sendImage() {
+            if (!checkConnection()) return;
+
+            var fileInput = document.getElementById('fileInput');
+            var toUid = document.getElementById('toUidInput').value;
+
+            if (fileInput.files.length === 0) {
+                alert("请先选择一张图片");
+                return;
+            }
+            if (!toUid) {
+                alert("发送图片必须指定接收者 (To UID)");
+                return;
+            }
+
+            var file = fileInput.files[0];
+            var reader = new FileReader();
+
+            reader.onload = function (e) {
+                var base64 = e.target.result; // data:image/png;base64,......
+
+                var json = JSON.stringify({
+                    toUser: toUid,
+                    content: base64, // 图片内容直接放 content
+                    type: 'image'
+                });
+                ws.send(json);
+                log('--> 发送图片给[' + toUid + ']');
+            };
+
+            reader.readAsDataURL(file);
+        }
+
         function sendPing() {
-            if (ws) {
+            if (checkConnection()) {
                 ws.send("ping");
                 log('--> 发送: ping');
             }
+        }
+
+        function checkConnection() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('未连接');
+                return false;
+            }
+            return true;
         }
 
         function log(text) {
@@ -104,6 +177,18 @@
             var p = document.createElement('p');
             p.innerText = new Date().toLocaleTimeString() + " " + text;
             consoleDiv.appendChild(p);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        function displayImage(fromUser, base64Data) {
+            var consoleDiv = document.getElementById('console');
+            var div = document.createElement('div');
+            div.style.marginBottom = "5px";
+            div.innerHTML = `
+                <span style="color: blue;">${new Date().toLocaleTimeString()} 收到来自[${fromUser}]的图片:</span><br/>
+                <img src="${base64Data}" style="max-width: 200px; max-height: 200px; border: 1px solid #ccc; margin-top: 5px;">
+            `;
+            consoleDiv.appendChild(div);
             consoleDiv.scrollTop = consoleDiv.scrollHeight;
         }
     </script>
